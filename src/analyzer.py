@@ -5370,6 +5370,20 @@ Output the complete Decision Dashboard in JSON format."""
             raise
         return stripped, data
 
+    def _normalize_analysis_json_keys(self, value: Any) -> Any:
+        """Recursively lowercase dict keys of a parsed LLM JSON candidate.
+
+        Models sometimes return the dashboard schema with UPPERCASE keys
+        (e.g. SENTIMENT_SCORE / DASHBOARD / PHASE_DECISION); the parser and
+        validators match lowercase keys, so normalize here once instead of
+        loosening every check.
+        """
+        if isinstance(value, dict):
+            return {str(key).lower(): self._normalize_analysis_json_keys(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [self._normalize_analysis_json_keys(item) for item in value]
+        return value
+
     def _load_analysis_json_candidate(self, json_str: str) -> Dict[str, Any]:
         """Parse one already-selected JSON candidate, repairing common LLM JSON drift."""
         try:
@@ -5389,7 +5403,7 @@ Output the complete Decision Dashboard in JSON format."""
             data = json.loads(repaired)
         if not isinstance(data, dict):
             raise TypeError("json_root_not_object")
-        return data
+        return self._normalize_analysis_json_keys(data)
 
     @staticmethod
     def _contains_embedded_json_object(text: str) -> bool:
